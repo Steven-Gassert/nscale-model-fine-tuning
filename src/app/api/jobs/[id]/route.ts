@@ -1,12 +1,13 @@
 import { deleteJob } from "@/lib/api";
 import { NextResponse } from "next/server";
 
+// Following the exact pattern from Next.js 15 documentation for dynamic route segments
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+    const { id } = await params;
     if (!id) {
       return NextResponse.json(
         { error: "Job ID is required" },
