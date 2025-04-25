@@ -1,0 +1,2 @@
+- Evaluation epochs and warmup epochs are between 0 and the total number of training epochs
+- Training epochs must be atleast 1

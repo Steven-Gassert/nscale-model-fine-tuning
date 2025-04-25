@@ -20,25 +20,14 @@ import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WorkflowFormData, workFlowSchema } from "./schema";
 import { ArrowLeft, Loader } from "lucide-react";
-import { ErrorMessage } from "@/components/ui/errorMessage";
-import { BaseModelReview, BaseModelSelect } from "./base-model";
 import { PageLayout } from "@/components/ui/page-layout";
 import { Model, ServerSideResponse } from "@/lib/api";
 import { ReviewCard } from "./review-card";
+import { useNotifications } from "@/app/providers";
+import { BaseModelReview, BaseModelSelect } from "./base-model";
+import { STEP_IDS, STEP_ORDER } from "./constants";
 
 type WorkflowFields = keyof WorkflowFormData;
-
-const STEP_IDS = {
-  SET_UP: "set-up",
-  CONFIGURE: "configure",
-  REVIEW: "review",
-} as const;
-
-export const STEP_ORDER = [
-  STEP_IDS.SET_UP,
-  STEP_IDS.CONFIGURE,
-  STEP_IDS.REVIEW,
-] as const;
 
 interface FormStep {
   id: string;
@@ -102,6 +91,8 @@ export function CreateNewJobForm({ modelsPromise }: CreateNewJobFormProps) {
       learningRate: 0,
     },
   });
+
+  const { addNotification } = useNotifications();
 
   const inputStyles = "max-w-full md:max-w-96"; // This is equivalent to 24rem in Tailwind
 
@@ -266,11 +257,8 @@ export function CreateNewJobForm({ modelsPromise }: CreateNewJobFormProps) {
         form.setError(field as keyof WorkflowFormData, { message });
       });
     } else if (result?.formError) {
-      // Set form-level error using root error if there was a problem creating the job on the server
-      form.setError("root", {
-        type: "server",
-        message: result.formError,
-      });
+      // Use notifications instead of form root error
+      addNotification("Error creating job", result.formError, "error");
     }
     // If no result, the redirect has happened
   };
@@ -279,9 +267,6 @@ export function CreateNewJobForm({ modelsPromise }: CreateNewJobFormProps) {
     <PageLayout header={<Header />}>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(callAndHandleCreateFormErrors)}>
-          {form.formState.errors.root?.message && (
-            <ErrorMessage error={form.formState.errors.root.message} />
-          )}
           <Wizard steps={formSteps} />
         </form>
       </Form>

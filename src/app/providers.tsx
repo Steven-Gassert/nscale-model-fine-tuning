@@ -5,7 +5,68 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { ReactNode } from "react";
+import { ReactNode, createContext, useContext, useState } from "react";
+
+export type NotificationType = "success" | "error" | "info";
+
+export interface Notification {
+  id: string;
+  title: string;
+  description?: string;
+  type: NotificationType;
+}
+
+interface NotificationsContextType {
+  notifications: Notification[];
+  addNotification: (
+    title: string,
+    description?: string,
+    type?: NotificationType
+  ) => string;
+  removeNotification: (id: string) => void;
+}
+
+const NotificationsContext = createContext<
+  NotificationsContextType | undefined
+>(undefined);
+
+export const useNotifications = () => {
+  const context = useContext(NotificationsContext);
+  if (context === undefined) {
+    throw new Error(
+      "useNotifications must be used within a NotificationsProvider"
+    );
+  }
+  return context;
+};
+
+export function NotificationsProvider({ children }: { children: ReactNode }) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const addNotification = (
+    title: string,
+    description?: string,
+    type: NotificationType = "info"
+  ): string => {
+    const id = crypto.randomUUID();
+    setNotifications((prev) => [...prev, { id, title, description, type }]);
+    return id;
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications((prev) =>
+      prev.filter((notification) => notification.id !== id)
+    );
+  };
+
+  return (
+    <NotificationsContext.Provider
+      value={{ notifications, addNotification, removeNotification }}
+    >
+      {children}
+    </NotificationsContext.Provider>
+  );
+}
 
 function makeQueryClient() {
   return new QueryClient({
@@ -42,6 +103,8 @@ export function Providers({ children }: { children: ReactNode }) {
   //       render if it suspends and there is no boundary
   const queryClient = getQueryClient();
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <NotificationsProvider>{children}</NotificationsProvider>
+    </QueryClientProvider>
   );
 }

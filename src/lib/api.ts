@@ -40,18 +40,6 @@ export interface Model {
   displayName: string;
 }
 
-// Custom error class for API errors
-export class APIError extends Error {
-  constructor(
-    message: string,
-    public status: number = 500,
-    public data?: unknown
-  ) {
-    super(message);
-    this.name = "APIError";
-  }
-}
-
 const API_KEY = process.env.API_KEY;
 const BASE_URL = "https://fe-test-api-production.up.railway.app/api";
 
@@ -130,6 +118,24 @@ export async function fetchModels(): Promise<ServerSideResponse<Model[]>> {
   );
 }
 
+export async function deleteJob(
+  jobId: string
+): Promise<ServerSideResponse<void>> {
+  return handleApiRequest<void>(
+    client.delete(`/jobs/${jobId}`),
+    "Failed to delete job"
+  );
+}
+
+export async function deleteJobFromFE(
+  jobId: string
+): Promise<ServerSideResponse<void>> {
+  return handleApiRequest<void>(
+    axios.delete(`/api/jobs/${jobId}`),
+    "Failed to delete job"
+  );
+}
+
 export async function createJob(
   params: WorkflowFormData
 ): Promise<ServerSideResponse<void>> {
@@ -138,3 +144,18 @@ export async function createJob(
     "Failed to create job"
   );
 }
+
+/*
+export async function createJob(
+  params: WorkflowFormData
+): Promise<ServerSideResponse<void>> {
+  const response = await handleApiRequest<void>(
+    client.post("/jobs", params),
+    "Failed to create job"
+  );
+  if (response.isSuccess) {
+    revalidatePath("/fine-tuning");
+  }
+  return response;
+}
+*/

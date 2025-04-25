@@ -19,7 +19,7 @@ import { JobsInformation } from "./jobs-information";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Wrench } from "lucide-react";
-import { STEP_ORDER } from "./new/create-new-job-form";
+import { STEP_ORDER } from "./new/constants";
 
 export default async function FineTuning() {
   return (

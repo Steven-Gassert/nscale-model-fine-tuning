@@ -1,7 +1,11 @@
 "use client";
 
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { fetchJobsFromFE, throwOnError } from "@/lib/api";
+import {
+  useSuspenseQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { fetchJobsFromFE, throwOnError, deleteJobFromFE } from "@/lib/api";
 import type { JobsData } from "@/lib/api";
 import { ErrorBoundary } from "react-error-boundary";
 import { ErrorMessage } from "@/components/ui/errorMessage";
@@ -26,8 +30,10 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { formatDistanceToNow } from "date-fns";
-import { ClipboardCopy } from "lucide-react";
+import { ClipboardCopy, Trash2, Check } from "lucide-react";
 import { useState } from "react";
+import { useNotifications } from "../providers";
+import { Button } from "@/components/ui/button";
 
 export function useJobs() {
   return useSuspenseQuery<JobsData>({
@@ -136,7 +142,51 @@ function JobChart() {
 function JobTable() {
   const { data, isError } = useJobs();
   const [currentPage, setCurrentPage] = useState(1);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const itemsPerPage = 5;
+  const queryClient = useQueryClient();
+  const { addNotification } = useNotifications();
+
+  const deleteMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await deleteJobFromFE(jobId);
+      if (response.isError) {
+        throw new Error(response.error);
+      }
+      return jobId;
+    },
+    onSuccess: (jobId) => {
+      // Invalidate and refetch jobs
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      addNotification(
+        "Job deleted",
+        `Job ${jobId} was successfully deleted`,
+        "success"
+      );
+    },
+    onError: (error) => {
+      // Show error notification
+      addNotification(
+        "Failed to delete job",
+        error instanceof Error ? error.message : "An unknown error occurred",
+        "error"
+      );
+    },
+  });
+
+  const handleDelete = (jobId: string) => {
+    deleteMutation.mutate(jobId);
+  };
+
+  const handleCopyToClipboard = (jobId: string) => {
+    navigator.clipboard.writeText(jobId).then(() => {
+      setCopiedId(jobId);
+      // Reset the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedId(null);
+      }, 2000);
+    });
+  };
 
   if (isError) {
     throw new Error("Error fetching jobs, please try again later.");
@@ -160,39 +210,68 @@ function JobTable() {
             <TableHead>Job ID</TableHead>
             <TableHead>Date</TableHead>
             <TableHead className="text-right">Status</TableHead>
+            <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {currentJobs.map((job) => (
-            <TableRow key={job.id}>
-              <TableCell className="font-mono flex items-center gap-2">
-                {job.id}
-                <button className="opacity-50 hover:opacity-100">
-                  <ClipboardCopy className="h-4 w-4" />
-                </button>
-              </TableCell>
-              <TableCell>
-                <div className="flex flex-col">
-                  <span>{new Date(job.createdAt).toLocaleDateString()}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatDistanceToNow(new Date(job.createdAt))} ago
-                  </span>
-                </div>
-              </TableCell>
-              <TableCell className="text-right">
-                <Badge
-                  variant={
-                    job.status.toLowerCase() as
-                      | "running"
-                      | "completed"
-                      | "failed"
-                  }
-                >
-                  {job.status}
-                </Badge>
-              </TableCell>
-            </TableRow>
-          ))}
+          {currentJobs.map((job) => {
+            const isDeleting =
+              deleteMutation.isPending && deleteMutation.variables === job.id;
+            const isCopied = copiedId === job.id;
+
+            return (
+              <TableRow
+                key={job.id}
+                className={isDeleting ? "opacity-50 italic" : ""}
+              >
+                <TableCell className="font-mono flex items-center gap-2">
+                  {job.id}
+                  <button
+                    className="opacity-50 hover:opacity-100 transition-opacity"
+                    onClick={() => handleCopyToClipboard(job.id)}
+                    title="Copy job ID to clipboard"
+                  >
+                    {isCopied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <ClipboardCopy className="h-4 w-4" />
+                    )}
+                  </button>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span>{new Date(job.createdAt).toLocaleDateString()}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {formatDistanceToNow(new Date(job.createdAt))} ago
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Badge
+                    variant={
+                      job.status.toLowerCase() as
+                        | "running"
+                        | "completed"
+                        | "failed"
+                    }
+                  >
+                    {job.status}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(job.id)}
+                    disabled={isDeleting}
+                    title="Delete job"
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
 
