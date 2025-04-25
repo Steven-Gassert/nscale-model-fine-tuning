@@ -4,7 +4,6 @@ import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Wizard } from "@/components/ui/wizard";
 import { createNewJob } from "./actions";
-import { STEP_IDS, STEP_ORDER } from "./page";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -15,24 +14,31 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ReactNode } from "react";
+import { ReactNode, Suspense } from "react";
 import { FormIncrementInput } from "@/components/ui/form-increment-input";
-import { FeatureCard } from "@/components/ui/card";
-import { useModels } from "./models-context";
 import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WorkflowFormData, workFlowSchema } from "./schema";
-import { Loader } from "lucide-react";
+import { ArrowLeft, Loader } from "lucide-react";
 import { ErrorMessage } from "@/components/ui/errorMessage";
+import { BaseModelReview, BaseModelSelect } from "./base-model";
+import { PageLayout } from "@/components/ui/page-layout";
+import { Model, ServerSideResponse } from "@/lib/api";
+import { ReviewCard } from "./review-card";
 
 type WorkflowFields = keyof WorkflowFormData;
+
+const STEP_IDS = {
+  SET_UP: "set-up",
+  CONFIGURE: "configure",
+  REVIEW: "review",
+} as const;
+
+export const STEP_ORDER = [
+  STEP_IDS.SET_UP,
+  STEP_IDS.CONFIGURE,
+  STEP_IDS.REVIEW,
+] as const;
 
 interface FormStep {
   id: string;
@@ -42,7 +48,48 @@ interface FormStep {
   continueCTA: ReactNode;
 }
 
-export function CreateNewJobForm() {
+function Header() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentStepId = searchParams.get("step") || STEP_ORDER[0];
+  const currentStepIndex = STEP_ORDER.indexOf(
+    currentStepId as (typeof STEP_ORDER)[number]
+  );
+  const handleBack = () => {
+    if (currentStepIndex > 0) {
+      // Navigate to previous step
+      const previousStepId = STEP_ORDER[currentStepIndex - 1];
+      router.push(`/fine-tuning/new?step=${previousStepId}`);
+    } else {
+      // Navigate back to fine-tuning page
+      router.push("/fine-tuning");
+    }
+  };
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleBack}
+          className="hover:bg-accent/50"
+        >
+          <ArrowLeft className="size-5" />
+        </Button>
+        <div>
+          <div className="text-sm text-muted-foreground">Fine-tuning</div>
+          <div className="text-xl font-semibold">Fine-tune a model</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface CreateNewJobFormProps {
+  modelsPromise: Promise<ServerSideResponse<Model[]>>;
+}
+
+export function CreateNewJobForm({ modelsPromise }: CreateNewJobFormProps) {
   const form = useForm<WorkflowFormData>({
     resolver: zodResolver(workFlowSchema),
     mode: "onBlur",
@@ -55,11 +102,6 @@ export function CreateNewJobForm() {
       learningRate: 0,
     },
   });
-
-  const availableModels = useModels();
-  const currentModelDisplayName =
-    availableModels?.find((model) => model.id === form.watch("baseModel"))
-      ?.displayName || "";
 
   const inputStyles = "max-w-full md:max-w-96"; // This is equivalent to 24rem in Tailwind
 
@@ -86,31 +128,13 @@ export function CreateNewJobForm() {
               </FormItem>
             )}
           />
-
-          <FormField
-            control={form.control}
-            name="baseModel"
-            render={({ field }) => (
-              <FormItem className="space-y-2">
-                <FormLabel>Base model</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a base model" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {availableModels.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <Suspense
+            fallback={
+              <div className="w-full h-10 bg-muted animate-pulse rounded-md" />
+            }
+          >
+            <BaseModelSelect modelsPromise={modelsPromise} />
+          </Suspense>
         </div>
       ),
       continueCTA: (
@@ -200,15 +224,7 @@ export function CreateNewJobForm() {
               }
               title={form.watch("name")}
             />
-            <ReviewCard
-              logo={
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  🤖
-                </div>
-              }
-              title="Model"
-              description={[currentModelDisplayName]}
-            />
+            <BaseModelReview modelsPromise={modelsPromise} />
             <ReviewCard
               logo={
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -260,46 +276,16 @@ export function CreateNewJobForm() {
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(callAndHandleCreateFormErrors)}>
-        {form.formState.errors.root?.message && (
-          <ErrorMessage error={form.formState.errors.root.message} />
-        )}
-        <Wizard steps={formSteps} />
-      </form>
-    </Form>
-  );
-}
-
-interface ReviewCardProps {
-  logo: React.ReactNode;
-  title: string;
-  description?: string[];
-  className?: string;
-}
-
-function ReviewCard({
-  logo,
-  title,
-  description = [],
-  className = "",
-}: ReviewCardProps) {
-  return (
-    <FeatureCard leftContent={logo} className={className}>
-      <div className="flex flex-col gap-2">
-        <h3 className="text-lg font-medium">{title}</h3>
-        {description.length > 0 && (
-          <div className="text-sm text-muted-foreground">
-            {description.map((desc, index) => (
-              <span key={index}>
-                {index > 0 && <span className="mx-1">•</span>}
-                {desc}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </FeatureCard>
+    <PageLayout header={<Header />}>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(callAndHandleCreateFormErrors)}>
+          {form.formState.errors.root?.message && (
+            <ErrorMessage error={form.formState.errors.root.message} />
+          )}
+          <Wizard steps={formSteps} />
+        </form>
+      </Form>
+    </PageLayout>
   );
 }
 

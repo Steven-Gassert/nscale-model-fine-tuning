@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "browser-tools": "npx @agentdeskai/browser-tools-server@1.2.0",
     "start": "next start",
     "lint": "next lint"
   },

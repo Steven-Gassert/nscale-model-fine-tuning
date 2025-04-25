@@ -19,6 +19,7 @@ import { JobsInformation } from "./jobs-information";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Wrench } from "lucide-react";
+import { STEP_ORDER } from "./new/create-new-job-form";
 
 export default async function FineTuning() {
   return (
@@ -35,7 +36,6 @@ export default async function FineTuning() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <FineTuningUsageCard />
         <div>
-          {" "}
           <GetStartedCard />
         </div>
       </div>
@@ -88,7 +88,7 @@ function GetStartedCard() {
       </CardContent>
       <CardFooter>
         <Button asChild>
-          <Link href="/fine-tuning/new">New Job</Link>
+          <Link href={`/fine-tuning/new?step=${STEP_ORDER[0]}`}>New Job</Link>
         </Button>
       </CardFooter>
     </FeatureCard>
